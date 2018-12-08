@@ -28,7 +28,7 @@ parser.add_argument('--dataset-format', default='sequential', metavar='STR',
                     help='dataset format, stacked: stacked frames (from original TensorFlow code) \
                     sequential: sequential folders (easier to convert to with a non KITTI/Cityscape dataset')
 parser.add_argument('--sequence-length', type=int, metavar='N', help='sequence length for training', default=3)
-parser.add_argument('--rotation-mode', type=str, choices=['euler', 'quat'], default='euler',
+parser.add_argument('--rotation-mode', type=str, choices=['euler', 'quat', 'exp'], default='euler',
                     help='rotation mode for PoseExpnet : euler (yaw,pitch,roll) or quaternion (last 3 coefficients)')
 parser.add_argument('--padding-mode', type=str, choices=['zeros', 'border'], default='zeros',
                     help='padding mode for image warping : this is important for photometric differenciation when going outside target image.'
@@ -451,6 +451,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
             coeffs_names.extend(['rx', 'ry', 'rz'])
         elif args.rotation_mode == 'quat':
             coeffs_names.extend(['qx', 'qy', 'qz'])
+        elif args.rotation_mode == 'exp':
+            coeffs_names.extend(['wx', 'wy', 'wz'])
         for i in range(poses.shape[1]):
             output_writers[0].add_histogram('{} {}'.format(prefix, coeffs_names[i]), poses[:,i], epoch)
         output_writers[0].add_histogram('disp_values', disp_values, epoch)
