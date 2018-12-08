@@ -4,6 +4,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from inverse_warp import inverse_warp
+import pdb
 
 
 def photometric_reconstruction_loss(tgt_img, ref_imgs, intrinsics, intrinsics_inv, depth, explainability_mask, pose, rotation_mode='euler', padding_mode='zeros'):
@@ -58,8 +59,23 @@ def explainability_loss(mask):
 
 def smooth_loss(pred_map, inp_img):
     def gradient(pred):
-        D_dy = pred[:, :, 1:-1] - pred[:, :, :-2]
-        D_dx = pred[:, :, :, 1:-1] - pred[:, :, :, :-2]
+        # Take the gradient of the image by constraining the center pixel to be the average 
+        # of all the other pixels around it.  It's like convolving
+        #
+        # Y-gradient
+        # [-1]
+        # [ 0]
+        # [ 1]
+        # X-gradient
+        # [-1 0 1]
+        #
+        # Across the image
+
+        p = nn.ReflectionPad2d(1)
+        pred_pad = p(pred)
+        D_dy = pred_pad[:, :, 2:, 1:-1] - pred_pad[:, :, :-2, 1:-1]
+        D_dx = pred_pad[:, :, 1:-1, 2:] - pred_pad[:, :, 1:-1, :-2]
+
         return D_dx, D_dy
 
     def laplacian(img):
@@ -71,14 +87,19 @@ def smooth_loss(pred_map, inp_img):
         # [0,  1, 0]
         #
         # Across the image
+        p = nn.ReflectionPad2d(1)
+        img_pad = p(img)
 
-        top = img[:, :,:-2]
-        bot = img[:, :,2:]
-        left = img[:, :,:,:-2]
-        right = img[:, :,:,2:]
-        cent = img[:, :,1:-1,1:-1]
+        pdb.set_trace()
+        top = img_pad[:, :,:-2, 1:-1]
+        bot = img_pad[:, :,2:, 1:-1]
+        left = img_pad[:, :,1:-1,:-2]
+        right = img_pad[:, :, 1:-1, 2:]
+        cent = img_pad[:, :,1:-1,1:-1]
   
         D2 = top + bot + left + right -4*cent
+
+        return D2
 
     if type(pred_map) not in [tuple, list]:
         pred_map = [pred_map]
@@ -90,8 +111,9 @@ def smooth_loss(pred_map, inp_img):
         dx, dy = gradient(scaled_map)
         dx2, dxdy = gradient(dx)
         dydx, dy2 = gradient(dy)
-        lapl = laplacian(inp_inp)
-        loss += torch.exp(lapl)*(dx2.abs().mean() + dxdy.abs().mean() + dydx.abs().mean() + dy2.abs().mean())*weight
+        lapl = laplacian(inp_img)
+        pdb.set_trace()
+        loss += (torch.exp(-1*lapl.mean(1))*(dx2.abs() + dxdy.abs() + dydx.abs() + dy2.abs())).mean()*weight
 
         weight /= 2.3  # don't ask me why it works better. <- might want to investigate this -David
     return loss
