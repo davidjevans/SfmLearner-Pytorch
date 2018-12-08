@@ -137,6 +137,19 @@ def quat2mat(quat):
                           2*xz - 2*wy, 2*wx + 2*yz, w2 - x2 - y2 + z2], dim=1).reshape(B, 3, 3)
     return rotMat
 
+def exp2mat(angle):
+    """Convert exponential mapping coefficients to rotation matrix.
+
+    Args:
+        quat: first three coeff of quaternion of rotation. fourht is then computed to have a norm of 1 -- size = [B, 3]
+    Returns:
+        Rotation matrix corresponding to the quaternion -- size = [B, 3, 3]
+    """
+    wx = torch.tensor([[0, -angle[:,2], angle[:,1]], [angle[:,2], 0, -angle[:,0]],[-angle[:,1], angle[:,0], 0]])
+    rotMat = torch.exp(wx) 
+    return rotMat
+
+
 
 def pose_vec2mat(vec, rotation_mode='euler'):
     """
@@ -153,6 +166,9 @@ def pose_vec2mat(vec, rotation_mode='euler'):
         rot_mat = euler2mat(rot)  # [B, 3, 3]
     elif rotation_mode == 'quat':
         rot_mat = quat2mat(rot)  # [B, 3, 3]
+    elif rotation_mode == 'exp':
+        rot_mat = exp2mat(rot)  # [B, 3, 3]
+
     transform_mat = torch.cat([rot_mat, translation], dim=2)  # [B, 3, 4]
     return transform_mat
 
