@@ -284,7 +284,7 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
             loss_2 = explainability_loss(explainability_mask)
         else:
             loss_2 = 0
-        loss_3 = smooth_loss(depth)
+        loss_3 = smooth_loss(depth, tgt_img)
 
         loss = w1*loss_1 + w2*loss_2 + w3*loss_3
 

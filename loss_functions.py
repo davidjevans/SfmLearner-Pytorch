@@ -56,11 +56,29 @@ def explainability_loss(mask):
     return loss
 
 
-def smooth_loss(pred_map):
+def smooth_loss(pred_map, inp_img):
     def gradient(pred):
-        D_dy = pred[:, :, 1:] - pred[:, :, :-1]
-        D_dx = pred[:, :, :, 1:] - pred[:, :, :, :-1]
+        D_dy = pred[:, :, 1:-1] - pred[:, :, :-2]
+        D_dx = pred[:, :, :, 1:-1] - pred[:, :, :, :-2]
         return D_dx, D_dy
+
+    def laplacian(img):
+        # Take the laplacian of the image by constraining the center pixel to be the average 
+        # of all the other pixels around it.  It's like convolving
+        #
+        # [0,  1, 0]
+        # [1, -4, 1]
+        # [0,  1, 0]
+        #
+        # Across the image
+
+        top = img[:, :,:-2]
+        bot = img[:, :,2:]
+        left = img[:, :,:,:-2]
+        right = img[:, :,:,2:]
+        cent = img[:, :,1:-1,1:-1]
+  
+        D2 = top + bot + left + right -4*cent
 
     if type(pred_map) not in [tuple, list]:
         pred_map = [pred_map]
@@ -72,8 +90,10 @@ def smooth_loss(pred_map):
         dx, dy = gradient(scaled_map)
         dx2, dxdy = gradient(dx)
         dydx, dy2 = gradient(dy)
-        loss += (dx2.abs().mean() + dxdy.abs().mean() + dydx.abs().mean() + dy2.abs().mean())*weight
-        weight /= 2.3  # don't ask me why it works better
+        lapl = laplacian(inp_inp)
+        loss += torch.exp(lapl)*(dx2.abs().mean() + dxdy.abs().mean() + dydx.abs().mean() + dy2.abs().mean())*weight
+
+        weight /= 2.3  # don't ask me why it works better. <- might want to investigate this -David
     return loss
 
 
