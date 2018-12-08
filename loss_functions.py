@@ -4,6 +4,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from inverse_warp import inverse_warp
+import pdb
 
 
 def photometric_reconstruction_loss(tgt_img, ref_imgs, intrinsics, intrinsics_inv, depth, explainability_mask, pose, rotation_mode='euler', padding_mode='zeros'):
@@ -56,11 +57,48 @@ def explainability_loss(mask):
     return loss
 
 
-def smooth_loss(pred_map):
+def smooth_loss(pred_map, inp_img):
     def gradient(pred):
-        D_dy = pred[:, :, 1:] - pred[:, :, :-1]
-        D_dx = pred[:, :, :, 1:] - pred[:, :, :, :-1]
+        # Take the gradient of the image by constraining the center pixel to be the average 
+        # of all the other pixels around it.  It's like convolving
+        #
+        # Y-gradient
+        # [-1]
+        # [ 0]
+        # [ 1]
+        # X-gradient
+        # [-1 0 1]
+        #
+        # Across the image
+
+        p = nn.ReflectionPad2d(1)
+        pred_pad = p(pred)
+        D_dy = pred_pad[:, :, 2:, 1:-1] - pred_pad[:, :, :-2, 1:-1]
+        D_dx = pred_pad[:, :, 1:-1, 2:] - pred_pad[:, :, 1:-1, :-2]
+
         return D_dx, D_dy
+
+    def laplacian(img):
+        # Take the laplacian of the image by constraining the center pixel to be the average 
+        # of all the other pixels around it.  It's like convolving
+        #
+        # [0,  1, 0]
+        # [1, -4, 1]
+        # [0,  1, 0]
+        #
+        # Across the image
+        p = nn.ReflectionPad2d(1)
+        img_pad = p(img)
+
+        top = img_pad[:, :,:-2, 1:-1]
+        bot = img_pad[:, :,2:, 1:-1]
+        left = img_pad[:, :,1:-1,:-2]
+        right = img_pad[:, :, 1:-1, 2:]
+        cent = img_pad[:, :,1:-1,1:-1]
+  
+        D2 = top + bot + left + right -4*cent
+
+        return D2
 
     if type(pred_map) not in [tuple, list]:
         pred_map = [pred_map]
@@ -69,11 +107,15 @@ def smooth_loss(pred_map):
     weight = 1.
 
     for scaled_map in pred_map:
+        [b, c, h, w] = scaled_map.shape
+        inp_img = nn.functional.interpolate(inp_img,(h, w), mode='area')
         dx, dy = gradient(scaled_map)
         dx2, dxdy = gradient(dx)
         dydx, dy2 = gradient(dy)
-        loss += (dx2.abs().mean() + dxdy.abs().mean() + dydx.abs().mean() + dy2.abs().mean())*weight
-        weight /= 2.3  # don't ask me why it works better
+        lapl = laplacian(inp_img)
+        loss += (torch.exp(-1*lapl.mean(1, keepdim = True))*(dx2.abs() + dxdy.abs() + dydx.abs() + dy2.abs())).mean()*weight
+
+        weight /= 2.3  # don't ask me why it works better. <- might want to investigate this -David
     return loss
 
 
