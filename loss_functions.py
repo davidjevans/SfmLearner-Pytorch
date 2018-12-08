@@ -107,11 +107,13 @@ def smooth_loss(pred_map, inp_img):
     weight = 1.
 
     for scaled_map in pred_map:
+        [b, c, h, w] = scaled_map.shape
+        inp_img = nn.functional.interpolate(inp_img,(h, w), mode='area')
         dx, dy = gradient(scaled_map)
         dx2, dxdy = gradient(dx)
         dydx, dy2 = gradient(dy)
         lapl = laplacian(inp_img)
-        loss += (torch.exp(-1*lapl.mean(1))*(dx2.abs() + dxdy.abs() + dydx.abs() + dy2.abs())).mean()*weight
+        loss += (torch.exp(-1*lapl.mean(1, keepdim = True))*(dx2.abs() + dxdy.abs() + dydx.abs() + dy2.abs())).mean()*weight
 
         weight /= 2.3  # don't ask me why it works better. <- might want to investigate this -David
     return loss
