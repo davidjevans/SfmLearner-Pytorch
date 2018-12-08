@@ -274,6 +274,8 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
         # compute output
         disparities = disp_net(tgt_img)
         depth = [1/disp for disp in disparities]
+        depth_mean = depth[0].mean() # Calculate mean depth to normalize depth
+        depth = [d/depth_mean for d in depth] # Normalize depth
         explainability_mask, pose = pose_exp_net(tgt_img, ref_imgs)
 
         loss_1 = photometric_reconstruction_loss(tgt_img, ref_imgs,
