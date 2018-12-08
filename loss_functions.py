@@ -90,7 +90,6 @@ def smooth_loss(pred_map, inp_img):
         p = nn.ReflectionPad2d(1)
         img_pad = p(img)
 
-        pdb.set_trace()
         top = img_pad[:, :,:-2, 1:-1]
         bot = img_pad[:, :,2:, 1:-1]
         left = img_pad[:, :,1:-1,:-2]
@@ -112,7 +111,6 @@ def smooth_loss(pred_map, inp_img):
         dx2, dxdy = gradient(dx)
         dydx, dy2 = gradient(dy)
         lapl = laplacian(inp_img)
-        pdb.set_trace()
         loss += (torch.exp(-1*lapl.mean(1))*(dx2.abs() + dxdy.abs() + dydx.abs() + dy2.abs())).mean()*weight
 
         weight /= 2.3  # don't ask me why it works better. <- might want to investigate this -David
