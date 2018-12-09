@@ -1,6 +1,8 @@
 from __future__ import division
 import torch
 import torch.nn.functional as F
+import cv2
+import pdb
 
 pixel_coords = None
 
@@ -137,7 +139,7 @@ def quat2mat(quat):
                           2*xz - 2*wy, 2*wx + 2*yz, w2 - x2 - y2 + z2], dim=1).reshape(B, 3, 3)
     return rotMat
 
-def exp2mat(angle):
+def exp2mat(W):
     """Convert exponential mapping coefficients to rotation matrix.
 
     Args:
@@ -145,8 +147,21 @@ def exp2mat(angle):
     Returns:
         Rotation matrix corresponding to the quaternion -- size = [B, 3, 3]
     """
-    wx = torch.tensor([[0, -angle[:,2], angle[:,1]], [angle[:,2], 0, -angle[:,0]],[-angle[:,1], angle[:,0], 0]])
-    rotMat = torch.exp(wx) 
+    theta = torch.norm(W, dim=1) 
+    w = torch.div(W, theta.unsqueeze(1))
+    z = torch.zeros(w.shape[0], 1).cuda()
+    o = torch.ones(w.shape[0], 1).cuda()
+    
+    wx = torch.cat((z, -w[:,2].unsqueeze(1), w[:,1].unsqueeze(1),
+               w[:,2].unsqueeze(1), z, -w[:,0].unsqueeze(1),
+               -w[:,1].unsqueeze(1), w[:,0].unsqueeze(1), z), 1)
+
+    wx = wx.view(w.shape[0], 3, 3)
+    wx2 = torch.bmm(wx, wx)
+    I = torch.cat((o, z, z, z, o, z, z, z, o), dim=1)
+    I = I.view(w.shape[0], 3, 3)
+    rotMat = I - wx*torch.sin(theta).unsqueeze(1).unsqueeze(1) + wx2*(1-torch.cos(theta).unsqueeze(1).unsqueeze(1))
+
     return rotMat
 
 
@@ -197,7 +212,7 @@ def inverse_warp(img, depth, pose, intrinsics, intrinsics_inv, rotation_mode='eu
     batch_size, _, img_height, img_width = img.size()
 
     cam_coords = pixel2cam(depth, intrinsics_inv)  # [B,3,H,W]
-
+    
     pose_mat = pose_vec2mat(pose, rotation_mode)  # [B,3,4]
 
     # Get projection matrix for tgt camera frame to source pixel frame
