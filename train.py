@@ -396,7 +396,7 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
             loss_2 = explainability_loss(explainability_mask).item()
         else:
             loss_2 = 0
-        loss_3 = smooth_loss(depth).item()
+        loss_3 = smooth_loss(depth, tgt_img).item()
 
         if log_outputs and i < len(output_writers):  # log first output of every 100 batch
             if epoch == 0:
